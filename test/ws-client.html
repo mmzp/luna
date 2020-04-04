@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+
+<head></head>
+
+<body>
+  <script>
+    var serverUrl = "ws://127.0.0.1:3003";
+    var ws;
+    startWebSocketServer(serverUrl);
+
+    function startWebSocketServer(serverUrl) {
+      ws = new WebSocket(serverUrl);
+      var isAlive = true;
+    //   ws.sendData = function(mid, sid, data = null) {
+    //     if (ws.readyState !== WebSocket.OPEN) {
+    //       console.error("Err: ws.readyState = ", ws.readyState);
+    //       return;
+    //     }
+    //     ws.send(
+    //       JSON.stringify({
+    //         mid,
+    //         sid,
+    //         res: data || undefined
+    //       })
+    //     );
+    //   };
+      ws.onopen = function(e) {
+        console.log("open: ", e);
+
+        // var pingInterval = setInterval(function() {
+        //   // 1: PING
+        //   ws.sendData(0, 1);
+        //   ws.sendData(0, 2);
+        // }, 1000);
+      };
+
+      ws.onclose = function(e) {
+        console.log("close: ", e);
+        // setTimeout(function() {
+        //   startWebSocketServer(serverUrl);
+        // }, 1000);
+      };
+      ws.onerror = function(e) {
+        console.log("error: ", e);
+      };
+      ws.onmessage = function(e) {
+        console.log('[ recv ]', e.data);
+        // var data;
+        // try {
+        //   data = JSON.parse(e.data);
+        // } catch (err) {
+        //   console.log("JSON.parse err: ", err);
+        //   console.log("e.data: ", e.data);
+        //   return;
+        // }
+
+        // var mid = data.mid || 0;
+        // var sid = data.sid || 0;
+        // var res = data.res || undefined;
+        // var key = mid + '-' + sid;
+        // switch (key) {
+        //   default:
+        //     console.log(`Invalid mid-sid, mid-sid:${key}, res: ${JSON.stringify(res)}`);
+        //     break;
+        //   case '0-1':
+        //     console.log(`mid-sid: ${key}, d: ${JSON.stringify(res)}`);
+        //     break;
+        //   case '0-2':
+        //     isAlive = true;
+        //     break;
+        // }
+      };
+    }
+  </script>
+</body>

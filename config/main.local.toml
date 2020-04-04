@@ -1,0 +1,16 @@
+[app]
+secret = "secret-k"
+
+[api]
+host = "127.0.0.1"
+port = 3301
+workerNum = 2
+
+[db]
+host = "192.168.11.199"
+port = 3306
+username = "dev"
+password = "pyg9TYUItVuu5NKM"
+database = "wxgame"
+charset = "utf8mb4"
+connectTimeout = 2000
