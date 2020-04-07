@@ -4,6 +4,7 @@
     "description": "nodejs framework base on koa by typescript",
     "author": "linzf <mmzp@qq.com>",
     "license": "MIT",
+    "main": "dist/index.js",
     "devDependencies": {
         "@typescript-eslint/eslint-plugin": "^2.14.0",
         "@typescript-eslint/parser": "^2.14.0",
@@ -42,6 +43,6 @@
         "node": ">=12.12.0"
     },
     "scripts": {
-        "dev": "_ENV=local yarn ts-node src/index.ts"
+        "build": "NODE_ENV=production yarn install && yarn tsc"
     }
 }
