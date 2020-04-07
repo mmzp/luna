@@ -1,12 +1,12 @@
 import { fork } from 'child_process';
 import * as fs from 'fs';
-import { getRootPath, logger } from './core';
+import { getRootPath, getBasePath, logger } from './core';
 
 class Manager {
-    runPath = `${getRootPath()}/run`;
-    managerPidFile = '';
-    moduleServerPidMap: Map<string, string> = new Map();
-    modulePaths: Array<string> = [];
+    private runPath = `${getRootPath()}/run`;
+    private managerPidFile = '';
+    private moduleServerPidMap: Map<string, string> = new Map();
+    private modulePaths: Array<string> = [];
 
     constructor(modulePaths: Array<string>) {
         this.managerPidFile = `${this.runPath}/manager.pid`;
@@ -82,7 +82,7 @@ class Manager {
 
     startModuleServer(modulePaths: Array<string>) {
         for (const modulePath of modulePaths) {
-            const forked = fork(`${__dirname}/${modulePath}`);
+            const forked = fork(`${getBasePath()}/${modulePath}`);
             const pidFile = `${this.runPath}/${modulePath.replace('/', '-')}.pid`;
             fs.writeFileSync(pidFile, forked.pid);
             this.moduleServerPidMap.set(modulePath, pidFile);

@@ -4,7 +4,7 @@ import * as bodyParser from 'koa-bodyparser';
 import * as path from 'path';
 import * as cluster from 'cluster';
 import * as os from 'os';
-import { mw, processUncaughtHandler, scanDir, logger } from './core';
+import { mw, processUncaughtHandler, scanDir, logger, getBasePath } from './core';
 import { Controller } from './controller';
 import { RouterMeta } from './decorator/meta';
 import * as error from './error';
@@ -221,7 +221,7 @@ class HttpServer {
     private async route() {
         const router = new Router();
 
-        const controllerPath = path.resolve(__dirname, './controller');
+        const controllerPath = path.resolve(getBasePath(), './controller');
         const controllerFiles = await scanDir(controllerPath);
         for (const controllerFile of controllerFiles) {
             if (!['.ts', '.js'].includes(controllerFile.substring(controllerFile.indexOf('.')))) {
