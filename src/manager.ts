@@ -1,10 +1,9 @@
 import { fork } from 'child_process';
-import { logger } from './logger';
 import * as fs from 'fs';
-import * as luna from './core';
+import { getRootPath, logger } from './core';
 
 class Manager {
-    runPath = `${luna.rootPath}/run`;
+    runPath = `${getRootPath()}/run`;
     managerPidFile = '';
     moduleServerPidMap: Map<string, string> = new Map();
     modulePaths: Array<string> = [];

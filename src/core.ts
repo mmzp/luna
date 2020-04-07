@@ -1,14 +1,30 @@
 import * as Koa from 'koa';
 import * as path from 'path';
 import * as fs from 'fs';
-import { logger } from './logger';
+import { getLogger } from './logger';
 
 export interface mw {
     (ctx: Koa.Context, next: Koa.Next): Promise<void>;
 }
 
-export const rootPath = path.dirname(__dirname);
-export const basePath = __dirname;
+let _basePath = __dirname;
+let _rootPath = path.dirname(_basePath);
+
+export function setBasePath(basePath: string) {
+    _basePath = basePath;
+    _rootPath = path.dirname(basePath);
+}
+
+export function getBasePath() {
+    return _basePath;
+}
+
+export function getRootPath() {
+    return _rootPath;
+}
+
+const logPath = `${_rootPath}/logs`;
+export const logger = getLogger(logPath);
 
 export async function scanDir(path: string, prefix = ''): Promise<Array<string>> {
     const files: Array<string> = [];

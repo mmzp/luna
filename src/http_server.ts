@@ -4,11 +4,10 @@ import * as bodyParser from 'koa-bodyparser';
 import * as path from 'path';
 import * as cluster from 'cluster';
 import * as os from 'os';
-import { mw, processUncaughtHandler, scanDir } from './core';
+import { mw, processUncaughtHandler, scanDir, logger } from './core';
 import { Controller } from './controller';
 import { RouterMeta } from './decorator/meta';
 import * as error from './error';
-import { logger } from './logger';
 import ctxLogger = require('@u-work/koa-pino-logger');
 
 interface RunOptions {

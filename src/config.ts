@@ -1,11 +1,11 @@
 import * as toml from '@iarna/toml';
 import * as fs from 'fs';
 import * as path from 'path';
-import { rootPath } from './core';
+import { getRootPath } from './core';
 
 const env = process.env._ENV && ['local', 'dev'].includes(process.env._ENV) ? process.env._ENV : 'prod';
 
-const context = fs.readFileSync(path.resolve(rootPath, `config/main.${env}.toml`));
+const context = fs.readFileSync(path.resolve(getRootPath(), `config/main.${env}.toml`));
 const conf = toml.parse(context.toString());
 
 export function get(key: string) {

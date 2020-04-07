@@ -2,7 +2,6 @@ import * as conf from './config';
 
 export { conf };
 export * from './core';
-export * from './logger';
 export * from './db';
 // export * from './error';
 export * from './lib/utils';
