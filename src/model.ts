@@ -253,8 +253,16 @@ export class Model {
         const updateParams: any[] = [];
         for (const field in info) {
             if (info[field] !== undefined && typeof info[field] !== 'function') {
-                updateFields.push(`\`${field}\`=?`);
-                updateParams.push(info[field]);
+                // 支持表达式，如 amount = amount + 1
+                // field 内容为 “amount = amount + 1”，而 info[field] 为该表达式的参数数组
+                if (field.indexOf('=') > 0) {
+                    updateFields.push(field);
+                    const fieldParmas = info[field] && Array.isArray(info[field]) ? info[field] : [];
+                    updateParams.push(...fieldParmas);
+                } else {
+                    updateFields.push(`\`${field}\`=?`);
+                    updateParams.push(info[field]);
+                }
             }
         }
         if (!updateFields.length) {
@@ -298,7 +306,7 @@ export class Model {
 
         let affectedResult;
         if (typeof p1 === 'object') {
-            // update by options.where
+            // delete by options.where
             let sql = `DELETE FROM \`${tableName}\``;
             const sqlParams: any[] = [];
             const whereArr: string[] = [];
