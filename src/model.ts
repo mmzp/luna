@@ -193,8 +193,6 @@ export interface FindOptions {
 }
 
 export class Model {
-    __setterTimes: Map<string, number> = new Map();
-
     protected static async _findOne<T extends Model>(type: new () => T, p1: any): Promise<T | undefined> {
         if (typeof p1 === 'object') {
             return _findOne(type, p1);
