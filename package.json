@@ -43,6 +43,7 @@
         "node": ">=12.12.0"
     },
     "scripts": {
+        "dev": "yarn install && yarn tsc",
         "build": "NODE_ENV=production yarn install && yarn tsc"
     }
 }

@@ -3,11 +3,13 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { getLogger } from './logger';
 
-export interface mw {
-    (ctx: Koa.Context, next: Koa.Next): Promise<void>;
-}
+// export interface mw {
+//     (ctx: Koa.Context, next: Koa.Next): Promise<void>;
+// }
 
-let _basePath = __dirname;
+export type mw = (ctx: Koa.Context, next: Koa.Next) => Promise<void>;
+
+let _basePath = process.env.BASE_PATH || __dirname;
 let _rootPath = path.dirname(_basePath);
 
 export function setBasePath(basePath: string) {

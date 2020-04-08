@@ -1,14 +1,14 @@
-import * as Koa from 'koa';
-import * as Router from '@koa/router';
-import * as bodyParser from 'koa-bodyparser';
-import * as path from 'path';
 import * as cluster from 'cluster';
 import * as os from 'os';
-import { mw, processUncaughtHandler, scanDir, logger, getBasePath } from './core';
-import { Controller } from './controller';
+import { mw, processUncaughtHandler, logger, scanDir, getBasePath } from './core';
+import * as Koa from 'koa';
+import * as path from 'path';
+import * as Router from '@koa/router';
+import * as bodyParser from 'koa-bodyparser';
 import { RouterMeta } from './decorator/meta';
-import * as error from './error';
 import ctxLogger = require('@u-work/koa-pino-logger');
+import { Controller } from './controller';
+import * as error from './error';
 
 interface RunOptions {
     workerNum?: number;
@@ -141,6 +141,8 @@ class HttpServer {
     }
 
     private async app(options?: RunOptions) {
+        const middlewares = options?.middlewares || [];
+
         const app = new Koa();
         const router = await this.route();
 
@@ -151,8 +153,8 @@ class HttpServer {
             }),
         );
 
-        if (options?.middlewares) {
-            for (const mw of options.middlewares) {
+        if (middlewares.length) {
+            for (const mw of middlewares) {
                 app.use(mw);
             }
         }
@@ -215,6 +217,7 @@ class HttpServer {
         );
         app.use(router.routes());
         app.use(router.allowedMethods());
+
         return app;
     }
 

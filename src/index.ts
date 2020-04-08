@@ -3,7 +3,7 @@ import * as conf from './config';
 export { conf };
 export * from './core';
 export * from './db';
-// export * from './error';
+export * from './error';
 export * from './lib/utils';
 
 export * from './decorator/meta';

@@ -39,20 +39,3 @@ export class DbError extends LunaError {
         this.params = params;
     }
 }
-
-////// 业务异常错误类 //////
-
-// 业务错误码范围：20000 ~ 99000
-////帐号相关：21000 ~ 21999
-export const BIZ_LOGIN_FAILED = 21000; // 登录注册失败
-export const BIZ_USER_NOT_EXIST = 21001; // 帐号不存在
-
-export class BizError extends Error {
-    code: number;
-
-    constructor(code: number, message: string) {
-        super(message);
-
-        this.code = code;
-    }
-}
