@@ -217,6 +217,8 @@ async function _findAll<T extends Model>(type: new () => T, options: FindOptions
     return formatRows(type, result);
 }
 
+export { PoolConnection };
+
 export interface FindOptions {
     where?: object;
     order?: Array<string>;
