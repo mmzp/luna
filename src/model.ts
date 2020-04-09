@@ -1,6 +1,7 @@
 import * as mysql from 'mysql2';
 import { ModelMeta } from './decorator/meta';
 import { db } from './db';
+import { PoolConnection } from 'mysql2/promise';
 
 type rowType = mysql.RowDataPacket[] | mysql.RowDataPacket | mysql.OkPacket;
 type rowsType = mysql.RowDataPacket[][] | mysql.RowDataPacket[] | mysql.OkPacket | mysql.OkPacket[];
@@ -89,30 +90,49 @@ function condition(whereKey: string, whereValue: any): [string, any] {
     return [sql, params];
 }
 
-async function _findOneByPk<T extends Model>(type: new () => T, id: number | string | boolean): Promise<T | undefined> {
+async function _findOneByPk<T extends Model>(
+    type: new () => T,
+    id: number | string | boolean,
+    conn?: PoolConnection,
+): Promise<T | undefined> {
     const tableName = ModelMeta.tables.get(type.name);
     const primaryKey = ModelMeta.primaryKeys.get(type.name) || 'id';
     if (!tableName) {
         throw new Error(`${type.name} 未指定表名`);
     }
-    const [rows] = await db.query(`SELECT * FROM \`${tableName}\` WHERE \`${primaryKey}\`=?`, [id]);
-    if (!rows || !Array.isArray(rows) || !rows.length) {
+    const sqlStr = `SELECT * FROM \`${tableName}\` WHERE \`${primaryKey}\`=?`;
+    const params = [id];
+    let result;
+    if (conn) {
+        [result] = await conn.query(sqlStr, params);
+    } else {
+        [result] = await db.query(sqlStr, params);
+    }
+    if (!result || !Array.isArray(result) || !result.length) {
         return undefined;
     }
-    return formatRow(type, rows[0]);
+    return formatRow(type, result[0]);
 }
 
-async function _findOne<T extends Model>(type: new () => T, options: FindOptions): Promise<T | undefined> {
+async function _findOne<T extends Model>(
+    type: new () => T,
+    options: FindOptions,
+    conn?: PoolConnection,
+): Promise<T | undefined> {
     options.offset = 0;
     options.limit = 1;
-    const data = await _findAll(type, options);
+    const data = await _findAll(type, options, conn);
     if (!data.length) {
         return undefined;
     }
     return data[0];
 }
 
-async function _findAllByPk<T extends Model>(type: new () => T, idArr: Array<number | string | boolean>): Promise<T[]> {
+async function _findAllByPk<T extends Model>(
+    type: new () => T,
+    idArr: Array<number | string | boolean>,
+    conn?: PoolConnection,
+): Promise<T[]> {
     if (!idArr.length) {
         return [];
     }
@@ -121,14 +141,21 @@ async function _findAllByPk<T extends Model>(type: new () => T, idArr: Array<num
     if (!tableName) {
         throw new Error(`${type.name} 未指定表名`);
     }
-    const [rows] = await db.query(`SELECT * FROM \`${tableName}\` WHERE \`${primaryKey}\` IN (?)`, [idArr]);
-    if (!rows || !Array.isArray(rows) || !rows.length) {
+    const sqlStr = `SELECT * FROM \`${tableName}\` WHERE \`${primaryKey}\` IN (?)`;
+    const params = [idArr];
+    let result;
+    if (conn) {
+        [result] = await conn.query(sqlStr, params);
+    } else {
+        [result] = await db.query(sqlStr, params);
+    }
+    if (!result || !Array.isArray(result) || !result.length) {
         return [];
     }
-    return formatRows(type, rows);
+    return formatRows(type, result);
 }
 
-async function _findAll<T extends Model>(type: new () => T, options: FindOptions): Promise<T[]> {
+async function _findAll<T extends Model>(type: new () => T, options: FindOptions, conn?: PoolConnection): Promise<T[]> {
     const tableName = ModelMeta.tables.get(type.name);
     if (!tableName) {
         throw new Error(`${type.name} 未指定表名`);
@@ -178,11 +205,16 @@ async function _findAll<T extends Model>(type: new () => T, options: FindOptions
         }
     }
 
-    const [rows] = await db.query(sql, sqlParams);
-    if (!rows || !Array.isArray(rows) || !rows.length) {
+    let result;
+    if (conn) {
+        [result] = await conn.query(sql, sqlParams);
+    } else {
+        [result] = await db.query(sql, sqlParams);
+    }
+    if (!result || !Array.isArray(result) || !result.length) {
         return [];
     }
-    return formatRows(type, rows);
+    return formatRows(type, result);
 }
 
 export interface FindOptions {
@@ -192,20 +224,36 @@ export interface FindOptions {
     limit?: number;
 }
 
+export interface BatchInsertOptions {
+    ignoreDuplicate?: boolean;
+    updateFieldsOnDuplicate?: string[];
+    batchCount?: number;
+}
+
+export interface BatchUpdateOptions {
+    updateFields?: string[];
+    keyFields?: string[];
+    batchCount?: number;
+}
+
 export class Model {
-    protected static async _findOne<T extends Model>(type: new () => T, p1: any): Promise<T | undefined> {
+    protected static async _findOne<T extends Model>(
+        type: new () => T,
+        p1: any,
+        conn?: PoolConnection,
+    ): Promise<T | undefined> {
         if (typeof p1 === 'object') {
-            return _findOne(type, p1);
+            return _findOne(type, p1, conn);
         } else {
-            return _findOneByPk(type, p1);
+            return _findOneByPk(type, p1, conn);
         }
     }
 
-    protected static async _findAll<T extends Model>(type: new () => T, p1: any): Promise<T[]> {
+    protected static async _findAll<T extends Model>(type: new () => T, p1: any, conn?: PoolConnection): Promise<T[]> {
         if (typeof p1 === 'object') {
-            return _findAll(type, p1);
+            return _findAll(type, p1, conn);
         } else {
-            return _findAllByPk(type, p1);
+            return _findAllByPk(type, p1, conn);
         }
     }
 
@@ -213,23 +261,39 @@ export class Model {
         type: new () => T,
         sql: string,
         params?: any[],
+        conn?: PoolConnection,
     ): Promise<T | undefined> {
-        const [rows] = await db.query(sql, params);
-        if (!rows || !Array.isArray(rows) || !rows.length) {
+        let result;
+        if (conn) {
+            [result] = await conn.query(sql, params);
+        } else {
+            [result] = await db.query(sql, params);
+        }
+        if (!result || !Array.isArray(result) || !result.length) {
             return undefined;
         }
-        return formatRow(type, rows[0]);
+        return formatRow(type, result[0]);
     }
 
-    protected static async _fetchAll<T extends Model>(type: new () => T, sql: string, params?: any[]): Promise<T[]> {
-        const [rows] = await db.query(sql, params);
-        if (!rows || !Array.isArray(rows) || !rows.length) {
+    protected static async _fetchAll<T extends Model>(
+        type: new () => T,
+        sql: string,
+        params?: any[],
+        conn?: PoolConnection,
+    ): Promise<T[]> {
+        let result;
+        if (conn) {
+            [result] = await conn.query(sql, params);
+        } else {
+            [result] = await db.query(sql, params);
+        }
+        if (!result || !Array.isArray(result) || !result.length) {
             return [];
         }
-        return formatRows(type, rows);
+        return formatRows(type, result);
     }
 
-    protected static async _insert<T extends Model>(info: T): Promise<T> {
+    protected static async _insert<T extends Model>(info: T, conn?: PoolConnection): Promise<T> {
         const tableName = ModelMeta.tables.get(info.constructor.name);
         const primaryKey = ModelMeta.primaryKeys.get(info.constructor.name) || 'id';
         if (!tableName) {
@@ -238,12 +302,24 @@ export class Model {
         if (info[primaryKey] === 0 || info[primaryKey] === '') {
             delete info[primaryKey];
         }
-        const [affectedResult] = await db.query(`INSERT INTO \`${tableName}\` SET ?`, [info]);
+        const sqlStr = `INSERT INTO \`${tableName}\` SET ?`;
+        const params = [info];
+        let affectedResult;
+        if (conn) {
+            [affectedResult] = await conn.query(sqlStr, params);
+        } else {
+            [affectedResult] = await db.query(sqlStr, params);
+        }
         info[primaryKey] = affectedResult['insertId'];
         return info;
     }
 
-    protected static async _update<T extends Model>(type: new () => T, p1: any, info: Object): Promise<number> {
+    protected static async _update<T extends Model>(
+        type: new () => T,
+        p1: any,
+        info: Object,
+        conn?: PoolConnection,
+    ): Promise<number> {
         const tableName = ModelMeta.tables.get(type.name);
         const primaryKey = ModelMeta.primaryKeys.get(type.name) || 'id';
         if (!tableName) {
@@ -269,11 +345,13 @@ export class Model {
             return 0;
         }
 
+        let sql = '';
+        let sqlParams: any[] = [];
         let affectedResult;
         if (typeof p1 === 'object') {
             // update by options.where
-            let sql = `UPDATE \`${tableName}\` SET ${updateFields.join(', ')}`;
-            const sqlParams: any[] = updateParams;
+            sql = `UPDATE \`${tableName}\` SET ${updateFields.join(', ')}`;
+            sqlParams = updateParams;
             if (p1.where) {
                 const whereArr: string[] = [];
                 for (let whereKey in p1.where) {
@@ -285,30 +363,39 @@ export class Model {
                     sql += ' WHERE ' + whereArr.join(' AND ');
                 }
             }
-            [affectedResult] = await db.query(sql, sqlParams);
         } else {
             // update by primaryKey
-            [affectedResult] = await db.query(
-                `UPDATE \`${tableName}\` SET ${updateFields.join(', ')} WHERE \`${primaryKey}\`=?`,
-                [...updateParams, p1],
-            );
+            sql = `UPDATE \`${tableName}\` SET ${updateFields.join(', ')} WHERE \`${primaryKey}\`=?`;
+            sqlParams = [...updateParams, p1];
+        }
+
+        if (conn) {
+            [affectedResult] = await conn.query(sql, sqlParams);
+        } else {
+            [affectedResult] = await db.query(sql, sqlParams);
         }
         return affectedResult['affectedRows'] || 0;
     }
 
     // 删除不允许没指定条件
-    protected static async _delete<T extends Model>(type: new () => T, p1: any): Promise<number> {
+    protected static async _delete<T extends Model>(
+        type: new () => T,
+        p1: any,
+        conn?: PoolConnection,
+    ): Promise<number> {
         const tableName = ModelMeta.tables.get(type.name);
         const primaryKey = ModelMeta.primaryKeys.get(type.name) || 'id';
         if (!tableName) {
             throw new Error(`${type.name} 未指定表名`);
         }
 
+        let sql = '';
+        let sqlParams: any[] = [];
         let affectedResult;
         if (typeof p1 === 'object') {
             // delete by options.where
-            let sql = `DELETE FROM \`${tableName}\``;
-            const sqlParams: any[] = [];
+            sql = `DELETE FROM \`${tableName}\``;
+            sqlParams = [];
             const whereArr: string[] = [];
             if (p1.where) {
                 for (let whereKey in p1.where) {
@@ -323,19 +410,239 @@ export class Model {
             if (!whereArr.length) {
                 throw new Error(`删除 ${tableName} 表时需要指定 where 条件`);
             }
-            [affectedResult] = await db.query(sql, sqlParams);
         } else {
             // delete by primaryKey
-            [affectedResult] = await db.query(`DELETE FROM \`${tableName}\` WHERE \`${primaryKey}\`=?`, [p1]);
+            sql = `DELETE FROM \`${tableName}\` WHERE \`${primaryKey}\`=?`;
+            sqlParams = [p1];
         }
+
+        if (conn) {
+            [affectedResult] = await conn.query(sql, sqlParams);
+        } else {
+            [affectedResult] = await db.query(sql, sqlParams);
+        }
+
         return affectedResult['affectedRows'] || 0;
     }
 
-    protected static async _exec(sql: string, params?: any[]): Promise<number> {
-        const [affectedResult] = await db.query(sql, params);
+    protected static async _exec(sql: string, params?: any[], conn?: PoolConnection): Promise<number> {
+        let affectedResult;
+        if (conn) {
+            [affectedResult] = await conn.query(sql, params);
+        } else {
+            [affectedResult] = await db.query(sql, params);
+        }
         if (!affectedResult || !affectedResult['affectedRows']) {
             return 0;
         }
         return affectedResult['affectedRows'];
+    }
+
+    /**
+     * 批量插入
+     */
+    protected static async _batchInsert<T extends Model>(
+        infoArr: Array<T>,
+        options?: BatchInsertOptions,
+        conn?: PoolConnection,
+    ): Promise<number> {
+        if (infoArr.length === 0) {
+            return 0;
+        }
+        const info = infoArr[0];
+        const tableName = ModelMeta.tables.get(info.constructor.name);
+        const primaryKey = ModelMeta.primaryKeys.get(info.constructor.name) || 'id';
+        if (!tableName) {
+            throw new Error(`${info.constructor.name} 未指定表名`);
+        }
+        let paramArr: Array<string> = [];
+        for (const field of Object.keys(info)) {
+            if (info[field] !== undefined && typeof info[field] !== 'function') {
+                paramArr.push(field);
+            }
+        }
+        // 'INSERT IGNORE' or 'ON DUPLICATE KEY UPDATE'
+        let ignoreStr = '';
+        let duplicateStr = '';
+        if (options && options.ignoreDuplicate === true) {
+            ignoreStr = 'IGNORE';
+        } else if (options && options.updateFieldsOnDuplicate) {
+            let keyStrArr: Array<string> = [];
+            if (options.updateFieldsOnDuplicate.length) {
+                keyStrArr = options.updateFieldsOnDuplicate.map(k => `${k} = VALUES(${k})`);
+            } else {
+                for (const field of paramArr) {
+                    if (field !== primaryKey) {
+                        keyStrArr.push(`${field} = VALUES(${field})`);
+                    }
+                }
+            }
+            duplicateStr = ` ON DUPLICATE KEY UPDATE ${keyStrArr.join(',')}`;
+        }
+
+        let affectedRows: number = 0;
+        let tmpArr: Array<T> = [];
+        const batchCount = options && options.batchCount ? options.batchCount : 500;
+        const totalCount = infoArr.length;
+        const connect = conn ? conn : await db.getConnection();
+        try {
+            if (totalCount > batchCount) {
+                await connect.beginTransaction();
+            }
+
+            while (infoArr.length > 0) {
+                let valueArr: Array<any> = [];
+                tmpArr = infoArr.splice(0, batchCount);
+                tmpArr.forEach(tmp => {
+                    let singleValueArr: Array<any> = [];
+                    for (const field of Object.keys(tmp)) {
+                        if (tmp[field] !== undefined && typeof tmp[field] !== 'function') {
+                            if (field === primaryKey && (tmp[field] === '' || tmp[field] === 0)) {
+                                singleValueArr.push(null);
+                            } else {
+                                singleValueArr.push(tmp[field]);
+                            }
+                        }
+                    }
+                    valueArr.push(singleValueArr);
+                });
+                const [affectedResult] = await connect.query(
+                    `INSERT ${ignoreStr} INTO \`${tableName}\` ( ${paramArr.join(',')} ) 
+                        VALUES ? ${duplicateStr}`,
+                    [valueArr],
+                );
+                affectedRows += affectedResult['affectedRows'];
+            }
+
+            if (totalCount > batchCount) {
+                await connect.commit();
+            }
+        } catch (e) {
+            if (totalCount > batchCount) {
+                await connect.rollback();
+            }
+            throw new Error(`批量插入表${tableName}出错: ${e}`);
+        }
+
+        if (!conn) {
+            connect.release();
+        }
+
+        return affectedRows;
+    }
+
+    /**
+     * 批量修改
+     * @param infoArr 待修改对象列表
+     * @param updateColNameArr 修改字段数组
+     * @param keyArr 指定主键或联合主键
+     */
+    protected static async _batchUpdate<T extends Model>(
+        infoArr: Array<T>,
+        options?: BatchUpdateOptions,
+        conn?: PoolConnection,
+    ): Promise<number> {
+        if (infoArr.length === 0) {
+            return 0;
+        }
+        const info = infoArr[0];
+        const tableName = ModelMeta.tables.get(info.constructor.name);
+        const primaryKey = ModelMeta.primaryKeys.get(info.constructor.name) || 'id';
+        if (!tableName) {
+            throw new Error(`${info.constructor.name} 未指定表名`);
+        }
+
+        // 没有指定修改的字段时 默认修改除key外的全部字段
+        let updateColNameArr: string[] = [];
+        if (!options || !options.updateFields || !options.updateFields.length) {
+            const tmpArr: Array<string> = [];
+            for (const field of Object.keys(info)) {
+                if (field !== primaryKey && info[field] !== undefined && typeof info[field] !== 'function') {
+                    tmpArr.push(field);
+                }
+            }
+            updateColNameArr = tmpArr;
+        } else {
+            updateColNameArr = options.updateFields;
+        }
+
+        // 没有指定主键或联合主键时，默认取主键
+        let keyArr: string[] = [];
+        if (!options || !options.keyFields || !options.keyFields.length) {
+            keyArr = [primaryKey];
+        } else {
+            keyArr = options.keyFields;
+        }
+
+        // 检查数据中是否真的包含指定的每个主键
+        for (const key of keyArr) {
+            if (Object.keys(info).indexOf(key) === -1) {
+                throw new Error(`待修改的数据中不存在主键 ${key}`);
+            }
+        }
+
+        let affectedRows: number = 0;
+        let tmpArr: Array<T> = [];
+        const batchCount = options && options.batchCount ? options.batchCount : 300;
+        const connect = conn ? conn : await db.getConnection();
+        const totalCount = infoArr.length;
+        try {
+            if (totalCount > batchCount) {
+                await connect.beginTransaction();
+            }
+
+            while (infoArr.length > 0) {
+                tmpArr = infoArr.splice(0, batchCount);
+                let sql = `UPDATE \`${tableName}\` set `;
+                const whereInMap: Map<string, Array<any>> = new Map();
+                for (const key of keyArr) {
+                    whereInMap.set(key, []);
+                }
+                const valueArr: Array<any> = [];
+                const setStrArr: Array<string> = [];
+                // 拼set xxx = xxx
+                for (const col of updateColNameArr) {
+                    let whenSql = '';
+                    for (const tmp of tmpArr) {
+                        // 拼 when a=? and b=? then
+                        whenSql += ` when `;
+                        const whenStrArr: Array<string> = [];
+                        for (const key of keyArr) {
+                            whenStrArr.push(` \`${key}\`=${tmp[key]} `);
+                            whereInMap.get(key)?.push(tmp[key]);
+                        }
+                        whenSql += whenStrArr.join('and');
+                        whenSql += `then ?`;
+                        valueArr.push(tmp[col]);
+                    }
+                    setStrArr.push(` \`${col}\` = (case ${whenSql} end) `);
+                }
+                sql += setStrArr.join(',');
+                sql += ` where `;
+                // 拼where xxx in(xxx)
+                const whereStrArr: Array<string> = [];
+                for (const [k, v] of whereInMap) {
+                    whereStrArr.push(` ${k} in (${v.join(',')}) `);
+                }
+                sql += whereStrArr.join('and');
+
+                const [affectedResult] = await connect.query(sql, valueArr);
+                affectedRows += affectedResult['affectedRows'];
+            }
+
+            if (totalCount > batchCount) {
+                await connect.commit();
+            }
+        } catch (e) {
+            if (totalCount > batchCount) {
+                await connect.rollback();
+            }
+            throw new Error(`批量更新表${tableName}出错: ${e}`);
+        }
+
+        if (!conn) {
+            connect.release();
+        }
+        return affectedRows;
     }
 }
