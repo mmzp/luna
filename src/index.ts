@@ -1,3 +1,5 @@
+/// <reference path="../types/koa_context.d.ts" />
+
 import * as conf from './config';
 
 export { conf };

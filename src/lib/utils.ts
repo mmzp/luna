@@ -327,6 +327,8 @@ export function crc32(str: string) {
     return crc;
 }
 
+// ===== 字符串处理 ===== //
+
 const ALL_CHAR = 'qwertyuiopasdfghjklzxcvbnm1234567890';
 
 export function randString(num: number) {
@@ -370,3 +372,22 @@ export function trim(str: string, chars = ' ') {
     }
     return ltrim(rtrim(str, chars), chars);
 }
+
+// ================= //
+
+// ===== 数值处理 ===== //
+
+const MAX_SAFE_INTEGER = 9007199254740991;
+
+export function parseSafeInt(value: any) {
+    const intValue = parseInt(value) || 0;
+    if (intValue < -MAX_SAFE_INTEGER) {
+        return -MAX_SAFE_INTEGER;
+    }
+    if (intValue > MAX_SAFE_INTEGER) {
+        return MAX_SAFE_INTEGER;
+    }
+    return intValue;
+}
+
+// ================= //

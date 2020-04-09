@@ -9,6 +9,7 @@ import { RouterMeta } from './decorator/meta';
 import ctxLogger = require('@u-work/koa-pino-logger');
 import { Controller } from './controller';
 import * as error from './error';
+import { convertHttpParmas } from './middleware/convert_http_params';
 
 interface RunOptions {
     workerNum?: number;
@@ -215,6 +216,7 @@ class HttpServer {
                 enableTypes: ['json', 'form', 'text'],
             }),
         );
+        app.use(convertHttpParmas);
         app.use(router.routes());
         app.use(router.allowedMethods());
 

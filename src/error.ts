@@ -10,10 +10,15 @@ export const DB_SQL_EXECUTE_ERROR = 11002;
 
 export class LunaError extends Error {
     code: number = 0;
+
+    constructor(code: number, message: string) {
+        super(message);
+        this.name = this.constructor.name;
+        this.code = code;
+    }
 }
 
 export class DbError extends LunaError {
-    code: number;
     errno: number;
     sqlState: string;
     stack?: string;
@@ -29,7 +34,7 @@ export class DbError extends LunaError {
         query?: string,
         params?: Array<any>,
     ) {
-        super(message);
+        super(code, message);
 
         this.code = code;
         this.errno = errno;
@@ -39,3 +44,6 @@ export class DbError extends LunaError {
         this.params = params;
     }
 }
+
+export class ErrParamNotExist extends LunaError {}
+export class ErrParamUnknownType extends LunaError {}
