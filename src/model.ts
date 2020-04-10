@@ -226,6 +226,11 @@ export interface FindOptions {
     limit?: number;
 }
 
+export interface InsertOptions {
+    ignoreDuplicate?: boolean;
+    updateFieldsOnDuplicate?: string[];
+}
+
 export interface BatchInsertOptions {
     ignoreDuplicate?: boolean;
     updateFieldsOnDuplicate?: string[];
@@ -295,7 +300,11 @@ export class Model {
         return formatRows(type, result);
     }
 
-    protected static async _insert<T extends Model>(info: T, conn?: PoolConnection): Promise<T> {
+    protected static async _insert<T extends Model>(
+        info: T,
+        options?: InsertOptions,
+        conn?: PoolConnection,
+    ): Promise<T> {
         const tableName = ModelMeta.tables.get(info.constructor.name);
         const primaryKey = ModelMeta.primaryKeys.get(info.constructor.name) || 'id';
         if (!tableName) {
@@ -304,7 +313,25 @@ export class Model {
         if (info[primaryKey] === 0 || info[primaryKey] === '') {
             delete info[primaryKey];
         }
-        const sqlStr = `INSERT INTO \`${tableName}\` SET ?`;
+        // 'INSERT IGNORE' or 'ON DUPLICATE KEY UPDATE'
+        let ignoreStr = '';
+        let duplicateStr = '';
+        if (options && options.ignoreDuplicate === true) {
+            ignoreStr = ' IGNORE';
+        } else if (options && options.updateFieldsOnDuplicate) {
+            let keyStrArr: Array<string> = [];
+            if (options.updateFieldsOnDuplicate.length) {
+                keyStrArr = options.updateFieldsOnDuplicate.map(k => `${k} = VALUES(${k})`);
+            } else {
+                for (const field in info) {
+                    if (field !== primaryKey) {
+                        keyStrArr.push(`${field} = VALUES(${field})`);
+                    }
+                }
+            }
+            duplicateStr = ` ON DUPLICATE KEY UPDATE ${keyStrArr.join(',')}`;
+        }
+        const sqlStr = `INSERT${ignoreStr} INTO \`${tableName}\` SET ?${duplicateStr}`;
         const params = [info];
         let affectedResult;
         if (conn) {
