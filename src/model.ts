@@ -6,6 +6,36 @@ import { PoolConnection } from 'mysql2/promise';
 type rowType = mysql.RowDataPacket[] | mysql.RowDataPacket | mysql.OkPacket;
 type rowsType = mysql.RowDataPacket[][] | mysql.RowDataPacket[] | mysql.OkPacket | mysql.OkPacket[];
 
+export { PoolConnection };
+
+interface TransactionOptions {
+    conn?: PoolConnection;
+}
+
+export interface FindOptions extends TransactionOptions {
+    where?: object;
+    order?: Array<string>;
+    offset?: number;
+    limit?: number;
+}
+
+export interface InsertOptions extends TransactionOptions {
+    ignoreDuplicate?: boolean;
+    updateFieldsOnDuplicate?: string[];
+}
+
+export interface BatchInsertOptions extends TransactionOptions {
+    ignoreDuplicate?: boolean;
+    updateFieldsOnDuplicate?: string[];
+    batchCount?: number;
+}
+
+export interface BatchUpdateOptions extends TransactionOptions {
+    updateFields?: string[];
+    keyFields?: string[];
+    batchCount?: number;
+}
+
 function formatRow<T extends Model>(type: new () => T, row: rowType): T {
     const instance = new type();
     for (const propertyName in instance) {
@@ -93,7 +123,7 @@ function condition(whereKey: string, whereValue: any): [string, any] {
 async function _findOneByPk<T extends Model>(
     type: new () => T,
     id: number | string | boolean,
-    conn?: PoolConnection,
+    options?: FindOptions,
 ): Promise<T | undefined> {
     const tableName = ModelMeta.tables.get(type.name);
     const primaryKey = ModelMeta.primaryKeys.get(type.name) || 'id';
@@ -103,8 +133,8 @@ async function _findOneByPk<T extends Model>(
     const sqlStr = `SELECT * FROM \`${tableName}\` WHERE \`${primaryKey}\`=?`;
     const params = [id];
     let result;
-    if (conn) {
-        [result] = await conn.query(sqlStr, params);
+    if (options && options.conn) {
+        [result] = await options.conn.query(sqlStr, params);
     } else {
         [result] = await db.query(sqlStr, params);
     }
@@ -114,14 +144,10 @@ async function _findOneByPk<T extends Model>(
     return formatRow(type, result[0]);
 }
 
-async function _findOne<T extends Model>(
-    type: new () => T,
-    options: FindOptions,
-    conn?: PoolConnection,
-): Promise<T | undefined> {
+async function _findOne<T extends Model>(type: new () => T, options: FindOptions): Promise<T | undefined> {
     options.offset = 0;
     options.limit = 1;
-    const data = await _findAll(type, options, conn);
+    const data = await _findAll(type, options);
     if (!data.length) {
         return undefined;
     }
@@ -131,7 +157,7 @@ async function _findOne<T extends Model>(
 async function _findAllByPk<T extends Model>(
     type: new () => T,
     idArr: Array<number | string | boolean>,
-    conn?: PoolConnection,
+    options?: FindOptions,
 ): Promise<T[]> {
     if (!idArr.length) {
         return [];
@@ -144,8 +170,8 @@ async function _findAllByPk<T extends Model>(
     const sqlStr = `SELECT * FROM \`${tableName}\` WHERE \`${primaryKey}\` IN (?)`;
     const params = [idArr];
     let result;
-    if (conn) {
-        [result] = await conn.query(sqlStr, params);
+    if (options && options.conn) {
+        [result] = await options.conn.query(sqlStr, params);
     } else {
         [result] = await db.query(sqlStr, params);
     }
@@ -155,7 +181,7 @@ async function _findAllByPk<T extends Model>(
     return formatRows(type, result);
 }
 
-async function _findAll<T extends Model>(type: new () => T, options: FindOptions, conn?: PoolConnection): Promise<T[]> {
+async function _findAll<T extends Model>(type: new () => T, options: FindOptions): Promise<T[]> {
     const tableName = ModelMeta.tables.get(type.name);
     if (!tableName) {
         throw new Error(`${type.name} 未指定表名`);
@@ -206,8 +232,8 @@ async function _findAll<T extends Model>(type: new () => T, options: FindOptions
     }
 
     let result;
-    if (conn) {
-        [result] = await conn.query(sql, sqlParams);
+    if (options && options.conn) {
+        [result] = await options.conn.query(sql, sqlParams);
     } else {
         [result] = await db.query(sql, sqlParams);
     }
@@ -217,50 +243,20 @@ async function _findAll<T extends Model>(type: new () => T, options: FindOptions
     return formatRows(type, result);
 }
 
-export { PoolConnection };
-
-export interface FindOptions {
-    where?: object;
-    order?: Array<string>;
-    offset?: number;
-    limit?: number;
-}
-
-export interface InsertOptions {
-    ignoreDuplicate?: boolean;
-    updateFieldsOnDuplicate?: string[];
-}
-
-export interface BatchInsertOptions {
-    ignoreDuplicate?: boolean;
-    updateFieldsOnDuplicate?: string[];
-    batchCount?: number;
-}
-
-export interface BatchUpdateOptions {
-    updateFields?: string[];
-    keyFields?: string[];
-    batchCount?: number;
-}
-
 export class Model {
-    protected static async _findOne<T extends Model>(
-        type: new () => T,
-        p1: any,
-        conn?: PoolConnection,
-    ): Promise<T | undefined> {
+    protected static async _findOne<T extends Model>(type: new () => T, p1: any, p2?: any): Promise<T | undefined> {
         if (typeof p1 === 'object') {
-            return _findOne(type, p1, conn);
+            return _findOne(type, p1);
         } else {
-            return _findOneByPk(type, p1, conn);
+            return _findOneByPk(type, p1, p2);
         }
     }
 
-    protected static async _findAll<T extends Model>(type: new () => T, p1: any, conn?: PoolConnection): Promise<T[]> {
+    protected static async _findAll<T extends Model>(type: new () => T, p1: any): Promise<T[]> {
         if (typeof p1 === 'object') {
-            return _findAll(type, p1, conn);
+            return _findAll(type, p1);
         } else {
-            return _findAllByPk(type, p1, conn);
+            return _findAllByPk(type, p1);
         }
     }
 
@@ -268,11 +264,11 @@ export class Model {
         type: new () => T,
         sql: string,
         params?: any[],
-        conn?: PoolConnection,
+        options?: FindOptions,
     ): Promise<T | undefined> {
         let result;
-        if (conn) {
-            [result] = await conn.query(sql, params);
+        if (options && options.conn) {
+            [result] = await options.conn.query(sql, params);
         } else {
             [result] = await db.query(sql, params);
         }
@@ -286,11 +282,11 @@ export class Model {
         type: new () => T,
         sql: string,
         params?: any[],
-        conn?: PoolConnection,
+        options?: FindOptions,
     ): Promise<T[]> {
         let result;
-        if (conn) {
-            [result] = await conn.query(sql, params);
+        if (options && options.conn) {
+            [result] = await options.conn.query(sql, params);
         } else {
             [result] = await db.query(sql, params);
         }
@@ -300,11 +296,7 @@ export class Model {
         return formatRows(type, result);
     }
 
-    protected static async _insert<T extends Model>(
-        info: T,
-        options?: InsertOptions,
-        conn?: PoolConnection,
-    ): Promise<T> {
+    protected static async _insert<T extends Model>(info: T, options?: InsertOptions): Promise<T> {
         const tableName = ModelMeta.tables.get(info.constructor.name);
         const primaryKey = ModelMeta.primaryKeys.get(info.constructor.name) || 'id';
         if (!tableName) {
@@ -334,8 +326,8 @@ export class Model {
         const sqlStr = `INSERT${ignoreStr} INTO \`${tableName}\` SET ?${duplicateStr}`;
         const params = [info];
         let affectedResult;
-        if (conn) {
-            [affectedResult] = await conn.query(sqlStr, params);
+        if (options && options.conn) {
+            [affectedResult] = await options.conn.query(sqlStr, params);
         } else {
             [affectedResult] = await db.query(sqlStr, params);
         }
@@ -347,7 +339,7 @@ export class Model {
         type: new () => T,
         p1: any,
         info: Object,
-        conn?: PoolConnection,
+        p2?: any,
     ): Promise<number> {
         const tableName = ModelMeta.tables.get(type.name);
         const primaryKey = ModelMeta.primaryKeys.get(type.name) || 'id';
@@ -377,6 +369,7 @@ export class Model {
         let sql = '';
         let sqlParams: any[] = [];
         let affectedResult;
+        let conn;
         if (typeof p1 === 'object') {
             // update by options.where
             sql = `UPDATE \`${tableName}\` SET ${updateFields.join(', ')}`;
@@ -392,10 +385,16 @@ export class Model {
                     sql += ' WHERE ' + whereArr.join(' AND ');
                 }
             }
+            if (p1.conn) {
+                conn = p1.conn;
+            }
         } else {
             // update by primaryKey
             sql = `UPDATE \`${tableName}\` SET ${updateFields.join(', ')} WHERE \`${primaryKey}\`=?`;
             sqlParams = [...updateParams, p1];
+            if (p2 && p2.conn) {
+                conn = p2.conn;
+            }
         }
 
         if (conn) {
@@ -407,11 +406,7 @@ export class Model {
     }
 
     // 删除不允许没指定条件
-    protected static async _delete<T extends Model>(
-        type: new () => T,
-        p1: any,
-        conn?: PoolConnection,
-    ): Promise<number> {
+    protected static async _delete<T extends Model>(type: new () => T, p1: any, p2?: any): Promise<number> {
         const tableName = ModelMeta.tables.get(type.name);
         const primaryKey = ModelMeta.primaryKeys.get(type.name) || 'id';
         if (!tableName) {
@@ -421,6 +416,7 @@ export class Model {
         let sql = '';
         let sqlParams: any[] = [];
         let affectedResult;
+        let conn;
         if (typeof p1 === 'object') {
             // delete by options.where
             sql = `DELETE FROM \`${tableName}\``;
@@ -439,10 +435,16 @@ export class Model {
             if (!whereArr.length) {
                 throw new Error(`删除 ${tableName} 表时需要指定 where 条件`);
             }
+            if (p1.conn) {
+                conn = p1.conn;
+            }
         } else {
             // delete by primaryKey
             sql = `DELETE FROM \`${tableName}\` WHERE \`${primaryKey}\`=?`;
             sqlParams = [p1];
+            if (p2 && p2.conn) {
+                conn = p2.conn;
+            }
         }
 
         if (conn) {
@@ -454,10 +456,10 @@ export class Model {
         return affectedResult['affectedRows'] || 0;
     }
 
-    protected static async _exec(sql: string, params?: any[], conn?: PoolConnection): Promise<number> {
+    protected static async _exec(sql: string, params?: any[], options?: FindOptions): Promise<number> {
         let affectedResult;
-        if (conn) {
-            [affectedResult] = await conn.query(sql, params);
+        if (options && options.conn) {
+            [affectedResult] = await options.conn.query(sql, params);
         } else {
             [affectedResult] = await db.query(sql, params);
         }
@@ -473,7 +475,6 @@ export class Model {
     protected static async _batchInsert<T extends Model>(
         infoArr: Array<T>,
         options?: BatchInsertOptions,
-        conn?: PoolConnection,
     ): Promise<number> {
         if (infoArr.length === 0) {
             return 0;
@@ -513,7 +514,7 @@ export class Model {
         let tmpArr: Array<T> = [];
         const batchCount = options && options.batchCount ? options.batchCount : 500;
         const totalCount = infoArr.length;
-        const connect = conn ? conn : await db.getConnection();
+        const connect = options && options.conn ? options.conn : await db.getConnection();
         try {
             if (totalCount > batchCount) {
                 await connect.beginTransaction();
@@ -553,7 +554,7 @@ export class Model {
             throw new Error(`批量插入表${tableName}出错: ${e}`);
         }
 
-        if (!conn) {
+        if (!options || !options.conn) {
             connect.release();
         }
 
@@ -569,7 +570,6 @@ export class Model {
     protected static async _batchUpdate<T extends Model>(
         infoArr: Array<T>,
         options?: BatchUpdateOptions,
-        conn?: PoolConnection,
     ): Promise<number> {
         if (infoArr.length === 0) {
             return 0;
@@ -613,7 +613,7 @@ export class Model {
         let affectedRows: number = 0;
         let tmpArr: Array<T> = [];
         const batchCount = options && options.batchCount ? options.batchCount : 300;
-        const connect = conn ? conn : await db.getConnection();
+        const connect = options && options.conn ? options.conn : await db.getConnection();
         const totalCount = infoArr.length;
         try {
             if (totalCount > batchCount) {
@@ -669,7 +669,7 @@ export class Model {
             throw new Error(`批量更新表${tableName}出错: ${e}`);
         }
 
-        if (!conn) {
+        if (!options || !options.conn) {
             connect.release();
         }
         return affectedRows;
