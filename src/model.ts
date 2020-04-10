@@ -252,11 +252,11 @@ export class Model {
         }
     }
 
-    protected static async _findAll<T extends Model>(type: new () => T, p1: any): Promise<T[]> {
+    protected static async _findAll<T extends Model>(type: new () => T, p1: any, p2?: any): Promise<T[]> {
         if (typeof p1 === 'object') {
             return _findAll(type, p1);
         } else {
-            return _findAllByPk(type, p1);
+            return _findAllByPk(type, p1, p2);
         }
     }
 
